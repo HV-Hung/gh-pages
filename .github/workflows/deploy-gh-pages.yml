@@ -24,57 +24,74 @@ jobs:
         run: |
           [[ -f .nojekyll ]] || printf "" > .nojekyll
 
-      - name: Clean gh-pages history (keep last 5 runs + dev)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare gh-pages branch (clean only if exists)
         run: |
-          set -e
+          set -euo pipefail
 
-          # fetch latest gh-pages snapshot (if it exists)
-          git fetch origin gh-pages || true
+          # Check if remote gh-pages exists
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            echo "gh-pages exists → cleaning branch"
+            GH_EXISTS=true
+          else
+            echo "gh-pages does NOT exist → skip cleaning"
+            GH_EXISTS=false
+          fi
 
-          # create orphan branch (no history) and clear staged changes
+          if [ "$GH_EXISTS" = false ]; then
+            exit 0  # nothing to clean, let deploy step create branch
+          fi
+
+          # ========== CLEANING PROCESS ==========
+          git fetch origin gh-pages
           git checkout --orphan temp-gh-pages
           git reset
 
-          # choose keep list (root special files + dev)
+          # checkout latest content into working tree
+          git checkout origin/gh-pages -- . || true
+
+          # always keep these
           keep=(.nojekyll CNAME dev)
 
-          # find last 5 numeric run-id dirs if present
+          # find last 5 numeric run folders
           last5=$(ls -1d [0-9]* 2>/dev/null | sort -n | tail -5 || true)
-          read -r -a lastarr <<<"$last5"
+          read -r -a arr <<<"$last5"
+          keep+=("${arr[@]}")
 
-          # add numeric dirs to keep array
-          for v in "${lastarr[@]:-}"; do
-            keep+=("$v")
-          done
+          # remove everything except keep list
+          for item in * .[!.]* ..?*; do
+            [ -e "$item" ] || continue
+            [[ "$item" == ".git" ]] && continue
+            [[ "$item" == "." || "$item" == ".." ]] && continue
 
-          # remove everything else in working tree (but do not remove .git)
-          for it in * .*; do
-            # skip current/parent/.git
-            [[ "$it" == "." || "$it" == ".." || "$it" == ".git" ]] && continue
-            # skip if in keep list
-            skip=false
+            found=false
             for k in "${keep[@]}"; do
-              [[ "$it" == "$k" ]] && { skip=true; break; }
+              [[ "$item" == "$k" ]] && found=true
             done
-            $skip || rm -rf "$it"
+            $found || rm -rf "$item"
           done
 
-          # ensure the keep items exist (so git add won't fail)
+          # ensure keep dirs/files exist
           for k in "${keep[@]}"; do
-            [[ -e "$k" ]] || mkdir -p "$k" 2>/dev/null || true
+            if [[ "$k" == ".nojekyll" || "$k" == "CNAME" ]]; then
+              [[ -f "$k" ]] || touch "$k"
+            else
+              mkdir -p "$k"
+            fi
           done
 
-          # configure commit identity
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # stage only the kept items (explicit)
-          git add "${keep[@]}" || true
-          git commit -m "Reset gh-pages: keep only dev + last 5 runs" || echo "No changes to commit"
+          # stage only existing keep items
+          add_list=()
+          for k in "${keep[@]}"; do
+            [[ -e "$k" ]] && add_list+=("$k")
+          done
 
-          # replace old gh-pages and push clean history
+          git add -- "${add_list[@]}"
+
+          git commit -m "Clean gh-pages: keep last 5 run folders + dev"
+
           git branch -D gh-pages || true
           git branch -m gh-pages
           git push origin gh-pages --force
