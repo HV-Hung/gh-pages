@@ -7,26 +7,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  tag:
-    name: Tag Release
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: write
-    outputs:
-      version: ${{ steps.get-release-version.outputs.version }}
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: wemogy/get-release-version-action@v4.3.2
-        id: get-release-version
-        with:
-          git-username: jtl
-          git-email: npm@jtl-cloud.com
-          mode: 'semantic'
-
   deploy:
     runs-on: ubuntu-latest
     permissions:
@@ -43,9 +23,35 @@ jobs:
         run: echo "RUN_ID=$(date +%s)" >> $GITHUB_ENV
 
       - name: Ensure .nojekyll exists (optional)
+        # optional but handy so gh-pages root has .nojekyll
         run: |
           [[ -f .nojekyll ]] || printf "" > .nojekyll
 
+      
+
+      - name: Prepare publish content
+        run: |
+          # create small temp folder containing index.html to publish
+          mkdir -p publish_tmp
+          cp index.html publish_tmp/
+
+      - name: Publish latest to dev (gh-pages/dev)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: publish_tmp
+          destination_dir: dev
+          # keep_files: true not required when publishing to a subdir,
+          # action will update the subdir; other files remain untouched
+          keep_files: false
+
+      - name: Publish snapshot to RUN_ID (archive)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: publish_tmp
+          destination_dir: ${{ github.run_id }}
+          keep_files: false
       - name: Prepare gh-pages branch (clean only if exists)
         run: |
           set -euo pipefail
@@ -117,27 +123,3 @@ jobs:
           git branch -D gh-pages || true
           git branch -m gh-pages
           git push origin gh-pages --force
-
-      - name: Prepare publish content
-        run: |
-          # create small temp folder containing index.html to publish
-          mkdir -p publish_tmp
-          cp index.html publish_tmp/
-
-      - name: Publish latest to dev (gh-pages/dev)
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: publish_tmp
-          destination_dir: dev
-          # keep_files: true not required when publishing to a subdir,
-          # action will update the subdir; other files remain untouched
-          keep_files: false
-
-      - name: Publish snapshot to RUN_ID (archive)
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: publish_tmp
-          destination_dir: ${{ github.run_id }}
-          keep_files: false
