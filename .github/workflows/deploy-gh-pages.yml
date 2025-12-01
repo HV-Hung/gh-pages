@@ -45,7 +45,7 @@ jobs:
           git clean -fdx
           git checkout gh-pages
           git checkout --orphan temp-gh-pages
-          git branch -D gh-pages || true
+          git branch -D origin gh-pages || true
           git reset
 
           all_run_ids=$(ls -1d [0-9]* | sort -n)
