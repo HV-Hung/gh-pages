@@ -31,7 +31,7 @@ jobs:
       - name: Prepare gh-pages branch
         run: |
           set -euo pipefail
-          move publish_tmp /tmp/report
+          mv publish_tmp /tmp/report
           git clean -fdx
           git checkout gh-pages
           git checkout --orphan temp-gh-pages
