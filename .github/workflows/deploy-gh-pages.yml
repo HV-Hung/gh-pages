@@ -31,7 +31,7 @@ jobs:
       - name: Prepare gh-pages branch
         run: |
           set -euo pipefail
-          mv publish_tmp/ /tmp/report/
+          mv publish_tmp /tmp/report
           git clean -fdx
           git checkout gh-pages
           git checkout --orphan temp-gh-pages
@@ -52,8 +52,8 @@ jobs:
           done
 
           rm -rf dev/
-          mv /tmp/report/ dev/
-          mv /tmp/report/ ${{ github.run_id }}/
+          mv /tmp/report dev
+          cp -r dev "${GITHUB_RUN_ID}/"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
