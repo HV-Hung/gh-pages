@@ -42,10 +42,7 @@ jobs:
       - name: Prepare gh-pages branch
         run: |
           set -euo pipefail
-          git clean -fdx
           git checkout gh-pages
-          git checkout --orphan temp-gh-pages
-          git push origin --delete gh-pages || true
           git reset
 
           all_run_ids=$(ls -1d [0-9]* | sort -n)
@@ -61,14 +58,7 @@ jobs:
               rm -rf "$d"
           done
 
-          # git config user.name "github-actions[bot]"
-          # git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # git add dev $last5
-
-          # git commit -m "Clean gh-pages: keep last 5 run folders + dev"
-          # git branch -m gh-pages
-          # git push origin gh-pages --force
+          git prune origin gh-pages || true
           
       - name: Publish current run to gh-pages
         uses: peaceiris/actions-gh-pages@v4
