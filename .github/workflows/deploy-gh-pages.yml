@@ -22,13 +22,6 @@ jobs:
         id: runid
         run: echo "RUN_ID=$(date +%s)" >> $GITHUB_ENV
 
-      - name: Ensure .nojekyll exists (optional)
-        # optional but handy so gh-pages root has .nojekyll
-        run: |
-          [[ -f .nojekyll ]] || printf "" > .nojekyll
-
-      
-
       - name: Prepare publish content
         run: |
           # create small temp folder containing index.html to publish
@@ -56,54 +49,24 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Check if remote gh-pages exists
-          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
-            echo "gh-pages exists → cleaning branch"
-            GH_EXISTS=true
-          else
-            echo "gh-pages does NOT exist → skip cleaning"
-            GH_EXISTS=false
-          fi
-
-          if [ "$GH_EXISTS" = false ]; then
-            exit 0  # nothing to clean, let deploy step create branch
-          fi
-
-          # ========== CLEANING PROCESS ==========
-          git fetch origin gh-pages
+          git checkout gh-pages
           git checkout --orphan temp-gh-pages
+          git branch -D gh-pages || true
           git reset
 
-          # checkout latest content into working tree
-          git checkout origin/gh-pages -- . || true
-
           # always keep these
-          keep=(.nojekyll CNAME dev)
+          dirs_to_keep=(.git dev)
 
-          # find last 5 numeric run folders
-          last5=$(ls -1d [0-9]* 2>/dev/null | sort -n | tail -5 || true)
-          read -r -a arr <<<"$last5"
-          keep+=("${arr[@]}")
+          # Find last 5 run ID directories (assuming they are numeric names)
+          last5=$(ls -1d [0-9]* | sort -n | tail -5)
 
-          # remove everything except keep list
-          for item in * .[!.]* ..?*; do
-            [ -e "$item" ] || continue
-            [[ "$item" == ".git" ]] && continue
-            [[ "$item" == "." || "$item" == ".." ]] && continue
+          # Combine to dirs to keep
+          dirs_to_keep+=($last5)
 
-            found=false
-            for k in "${keep[@]}"; do
-              [[ "$item" == "$k" ]] && found=true
-            done
-            $found || rm -rf "$item"
-          done
-
-          # ensure keep dirs/files exist
-          for k in "${keep[@]}"; do
-            if [[ "$k" == ".nojekyll" || "$k" == "CNAME" ]]; then
-              [[ -f "$k" ]] || touch "$k"
-            else
-              mkdir -p "$k"
+          # Delete everything else
+          for d in *; do
+            if [[ ! " ${dirs_to_keep[@]} " =~ " $d " ]]; then
+              rm -rf "$d"
             fi
           done
 
@@ -111,15 +74,10 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # stage only existing keep items
-          add_list=()
-          for k in "${keep[@]}"; do
-            [[ -e "$k" ]] && add_list+=("$k")
-          done
+    
 
-          git add -- "${add_list[@]}"
+          git add "${dirs_to_keep}"
 
           git commit -m "Clean gh-pages: keep last 5 run folders + dev"
-
-          git branch -D gh-pages || true
           git branch -m gh-pages
           git push origin gh-pages --force
