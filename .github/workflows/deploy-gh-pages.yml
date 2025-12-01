@@ -4,8 +4,29 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
+  tag:
+    name: Tag Release
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.get-release-version.outputs.version }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: wemogy/get-release-version-action@v4.3.2
+        id: get-release-version
+        with:
+          git-username: jtl
+          git-email: npm@jtl-cloud.com
+          mode: 'semantic'
+
   deploy:
     runs-on: ubuntu-latest
     permissions:
@@ -119,5 +140,5 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: publish_tmp
-          destination_dir: ${{ env.RUN_ID }}
+          destination_dir: ${{ github.run_id }}
           keep_files: false
