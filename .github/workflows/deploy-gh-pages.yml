@@ -43,7 +43,6 @@ jobs:
         run: echo "RUN_ID=$(date +%s)" >> $GITHUB_ENV
 
       - name: Ensure .nojekyll exists (optional)
-        # optional but handy so gh-pages root has .nojekyll
         run: |
           [[ -f .nojekyll ]] || printf "" > .nojekyll
 
