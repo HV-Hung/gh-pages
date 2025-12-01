@@ -28,23 +28,17 @@ jobs:
           mkdir -p publish_tmp
           cp index.html publish_tmp/
 
-      - name: Publish latest to dev (gh-pages/dev)
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: publish_tmp
-          destination_dir: dev
-          # keep_files: true not required when publishing to a subdir,
-          # action will update the subdir; other files remain untouched
-          keep_files: false
+      # - name: Publish latest to dev (gh-pages/dev)
+      #   uses: peaceiris/actions-gh-pages@v4
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     publish_dir: publish_tmp
+      #     destination_dir: dev
+      #     # keep_files: true not required when publishing to a subdir,
+      #     # action will update the subdir; other files remain untouched
+      #     keep_files: false
 
-      - name: Publish snapshot to RUN_ID (archive)
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: publish_tmp
-          destination_dir: ${{ github.run_id }}
-          keep_files: false
+
       - name: Prepare gh-pages branch
         run: |
           set -euo pipefail
@@ -67,11 +61,18 @@ jobs:
               rm -rf "$d"
           done
 
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # git config user.name "github-actions[bot]"
+          # git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add dev $last5
+          # git add dev $last5
 
-          git commit -m "Clean gh-pages: keep last 5 run folders + dev"
-          git branch -m gh-pages
-          git push origin gh-pages --force
+          # git commit -m "Clean gh-pages: keep last 5 run folders + dev"
+          # git branch -m gh-pages
+          # git push origin gh-pages --force
+          
+      - name: Publish current run to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          keep_files: false
