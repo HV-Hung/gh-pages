@@ -54,27 +54,21 @@ jobs:
           git branch -D gh-pages || true
           git reset
 
-          # always keep these
-          dirs_to_keep=(.git dev)
+          all_run_ids=$(ls -1d [0-9]* | sort -n)
 
-          # Find last 5 run ID directories (assuming they are numeric names)
-          last5=$(ls -1d [0-9]* | sort -n | tail -5)
+          # Get the last 5 run IDs
+          last5=$(echo "$all_run_ids" | tail -5)
 
-          # Combine to dirs to keep
-          dirs_to_keep+=($last5)
+          # Determine old run IDs to delete
+          old_run_ids=$(comm -23 <(echo "$all_run_ids") <(echo "$last5"))
 
-          # Delete everything else
-          for d in *; do
-            if [[ ! " ${dirs_to_keep[@]} " =~ " $d " ]]; then
+          # Delete only old run ID directories
+          for d in $old_run_ids; do
               rm -rf "$d"
-            fi
           done
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # stage only existing keep items
-    
 
           git add .
 
