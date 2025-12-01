@@ -1,0 +1,104 @@
+name: Deploy GH Pages (dev + run archive)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Prepare RUN_ID
+        id: runid
+        run: echo "RUN_ID=$(date +%s)" >> $GITHUB_ENV
+
+      - name: Ensure .nojekyll exists (optional)
+        # optional but handy so gh-pages root has .nojekyll
+        run: |
+          [[ -f .nojekyll ]] || printf "" > .nojekyll
+
+      - name: Clean gh-pages history (keep last 5 runs + dev)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          # fetch latest gh-pages snapshot (if it exists)
+          git fetch origin gh-pages || true
+
+          # create orphan branch (no history) and clear staged changes
+          git checkout --orphan temp-gh-pages
+          git reset
+
+          # choose keep list (root special files + dev)
+          keep=(.nojekyll CNAME dev)
+
+          # find last 5 numeric run-id dirs if present
+          last5=$(ls -1d [0-9]* 2>/dev/null | sort -n | tail -5 || true)
+          read -r -a lastarr <<<"$last5"
+
+          # add numeric dirs to keep array
+          for v in "${lastarr[@]:-}"; do
+            keep+=("$v")
+          done
+
+          # remove everything else in working tree (but do not remove .git)
+          for it in * .*; do
+            # skip current/parent/.git
+            [[ "$it" == "." || "$it" == ".." || "$it" == ".git" ]] && continue
+            # skip if in keep list
+            skip=false
+            for k in "${keep[@]}"; do
+              [[ "$it" == "$k" ]] && { skip=true; break; }
+            done
+            $skip || rm -rf "$it"
+          done
+
+          # ensure the keep items exist (so git add won't fail)
+          for k in "${keep[@]}"; do
+            [[ -e "$k" ]] || mkdir -p "$k" 2>/dev/null || true
+          done
+
+          # configure commit identity
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # stage only the kept items (explicit)
+          git add "${keep[@]}" || true
+          git commit -m "Reset gh-pages: keep only dev + last 5 runs" || echo "No changes to commit"
+
+          # replace old gh-pages and push clean history
+          git branch -D gh-pages || true
+          git branch -m gh-pages
+          git push origin gh-pages --force
+
+      - name: Prepare publish content
+        run: |
+          # create small temp folder containing index.html to publish
+          mkdir -p publish_tmp
+          cp index.html publish_tmp/
+
+      - name: Publish latest to dev (gh-pages/dev)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: publish_tmp
+          destination_dir: dev
+          # keep_files: true not required when publishing to a subdir,
+          # action will update the subdir; other files remain untouched
+          keep_files: false
+
+      - name: Publish snapshot to RUN_ID (archive)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: publish_tmp
+          destination_dir: ${{ env.RUN_ID }}
+          keep_files: false
