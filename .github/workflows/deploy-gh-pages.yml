@@ -76,7 +76,7 @@ jobs:
           # stage only existing keep items
     
 
-          git add "${dirs_to_keep}"
+          git add .
 
           git commit -m "Clean gh-pages: keep last 5 run folders + dev"
           git branch -m gh-pages
