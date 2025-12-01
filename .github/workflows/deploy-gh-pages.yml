@@ -45,10 +45,10 @@ jobs:
           publish_dir: publish_tmp
           destination_dir: ${{ github.run_id }}
           keep_files: false
-      - name: Prepare gh-pages branch (clean only if exists)
+      - name: Prepare gh-pages branch
         run: |
           set -euo pipefail
-
+          git clean -fdx
           git checkout gh-pages
           git checkout --orphan temp-gh-pages
           git branch -D gh-pages || true
