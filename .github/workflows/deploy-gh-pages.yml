@@ -28,21 +28,14 @@ jobs:
           mkdir -p publish_tmp
           cp index.html publish_tmp/
 
-      # - name: Publish latest to dev (gh-pages/dev)
-      #   uses: peaceiris/actions-gh-pages@v4
-      #   with:
-      #     github_token: ${{ secrets.GITHUB_TOKEN }}
-      #     publish_dir: publish_tmp
-      #     destination_dir: dev
-      #     # keep_files: true not required when publishing to a subdir,
-      #     # action will update the subdir; other files remain untouched
-      #     keep_files: false
-
-
       - name: Prepare gh-pages branch
         run: |
           set -euo pipefail
+          move publish_tmp /tmp/report
+          git clean -fdx
           git checkout gh-pages
+          git checkout --orphan temp-gh-pages
+          git branch -D gh-pages || true
           git reset
 
           all_run_ids=$(ls -1d [0-9]* | sort -n)
@@ -58,11 +51,36 @@ jobs:
               rm -rf "$d"
           done
 
-          git prune origin gh-pages || true
-          
-      - name: Publish current run to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .
-          keep_files: false
+          rm -rf dev/
+          mv /tmp/report/ dev/
+          mv /tmp/report/ ${{ github.run_id }}/
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add dev $last5
+
+          git commit -m "Clean gh-pages: keep last 5 run folders + dev"
+          git branch -m gh-pages
+          git push origin gh-pages --force
+
+
+      # - name: Publish latest to dev (gh-pages/dev)
+      #   uses: peaceiris/actions-gh-pages@v4
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     publish_dir: publish_tmp
+      #     destination_dir: dev
+      #     # keep_files: true not required when publishing to a subdir,
+      #     # action will update the subdir; other files remain untouched
+      #     keep_files: false
+
+      # - name: Publish snapshot to RUN_ID (archive)
+      #   uses: peaceiris/actions-gh-pages@v4
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     publish_dir: publish_tmp
+      #     destination_dir: ${{ github.run_id }}
+      #     keep_files: false
+
+      
