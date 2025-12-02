@@ -65,7 +65,7 @@ jobs:
           cp -r dev "${GITHUB_RUN_ID}"
 
           # 7. Commit and Force Push
-          git add .
+          git add dev [0-9]*
           git commit -m "Deploy report: Run ${GITHUB_RUN_ID}"
 
           #    Force push to gh-pages (overwriting history completely)
