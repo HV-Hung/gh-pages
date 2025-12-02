@@ -26,39 +26,50 @@ jobs:
 
       - name: Prepare gh-pages branch
         run: |
-          set -euo pipefail
-          mv publish_tmp /tmp/report
-          git clean -fdx
-          git checkout gh-pages
-          git checkout --orphan temp-gh-pages
-          git branch -D gh-pages || true
-          git reset
+          # 1. Configure Git
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          all_run_ids=$(ls -1d [0-9]* | sort -n)
+          # 2. Move the NEW report to a safe temporary location
+          #    (so it doesn't get messed up during git checkout)
+          mv publish_tmp /tmp/new_report
 
-          # Get the last 5 run IDs
-          last5=$(echo "$all_run_ids" | tail -5)
+          # 3. Fetch and switch to existing content (if it exists)
+          #    We do this to get the OLD folders (previous run IDs) into our working directory.
+          git fetch origin gh-pages || true
 
-          # Determine old run IDs to delete
-          old_run_ids=$(comm -23 <(echo "$all_run_ids") <(echo "$last5"))
+          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            echo "Branch exists. Checking out current content..."
+            git checkout origin/gh-pages
+          else
+            echo "Branch does not exist. Starting fresh..."
+            git checkout --orphan gh-pages
+          fi
 
-          # Delete only old run ID directories
-          for d in $old_run_ids; do
-              rm -rf "$d"
-          done
+          # 4. Create the "One Commit" state
+          #    Create a new orphan branch. This disconnects the history.
+          git checkout --orphan deploy-branch
+          git reset .  # Unstage everything. Files are now 'untracked' but present on disk.
 
-          rm -rf dev/
-          mv /tmp/report dev
-          cp -r dev "${GITHUB_RUN_ID}/"
+          # 5. Clean up OLD data
+          #    Remove old 'dev' folder
+          rm -rf dev
 
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          #    Retention Logic: Keep only the newest 5 run-id folders.
+          #    List all numeric directories -> Sort Numerically -> Select all except last 5 -> Delete them
+          find . -maxdepth 1 -type d -regex "./[0-9]+" | sort -n | head -n -5 | xargs -I {} rm -rf "{}"
 
-          git add dev $last5 $GITHUB_RUN_ID
+          # 6. Add NEW data
+          #    Bring the new report back as 'dev' and copy it to 'run_id'
+          mv /tmp/new_report dev
+          cp -r dev "${GITHUB_RUN_ID}"
 
-          git commit -m "Clean gh-pages: keep last 5 run folders + dev"
-          git branch -m gh-pages
-          git push origin gh-pages --force
+          # 7. Commit and Force Push
+          git add .
+          git commit -m "Deploy report: Run ${GITHUB_RUN_ID}"
+
+          #    Force push to gh-pages (overwriting history completely)
+          git push origin deploy-branch:gh-pages --force
 
 
       # - name: Publish latest to dev (gh-pages/dev)
